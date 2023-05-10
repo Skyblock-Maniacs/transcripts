@@ -1,12 +1,12 @@
 package main
 
 import (
-	"net/http"
-	"log"
 	"io"
+	"log"
+	"net/http"
 	"os"
 	"strings"
-	
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -78,11 +78,11 @@ func postTranscript(c *gin.Context) {
 
 	if !(strings.HasPrefix(file.Header.Get("content-type"), "text/html")) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File must be of type text/html"})
-		return;
+		return
 	}
 
 	extractedFile, err := file.Open()
-	
+
 	if err != nil {
 		log.Println(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -107,7 +107,7 @@ func postTranscript(c *gin.Context) {
 		return
 	}
 
-	err = os.WriteFile("./files/" + id + ".html", extractedFileBytes, 0644)
+	err = os.WriteFile("./files/"+id+".html", extractedFileBytes, 0644)
 
 	if err != nil {
 		log.Println(err.Error())
