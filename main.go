@@ -1,32 +1,52 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
-func main() {
+var (
+	client *s3.Client
+)
+
+func init() {
 	log.Println("Starting server...")
-	loadEnv()
-
-	initServer()
-}
-
-func loadEnv() {
 	err := godotenv.Load()
 
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 	log.Println("Env loaded successfully")
+
+	client = s3.New(s3.Options{
+		AppID: "my-application/0.0.1",
+
+		Region: os.Getenv("AWS_REGION"),
+		BaseEndpoint: aws.String(os.Getenv("AWS_ENDPOINT_URL")),
+
+		Credentials: credentials.StaticCredentialsProvider{Value: aws.Credentials{
+			AccessKeyID: os.Getenv("AWS_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		}},
+	})
+	log.Println("S3 session created successfully")
+}
+
+func main() {
+	initServer()
 }
 
 func initServer() {
@@ -60,8 +80,27 @@ func middleware() gin.HandlerFunc {
 }
 
 func getTranscript(c *gin.Context) {
-	id := c.Param("id")
-	c.File("./files/" + id + ".html")
+	ctx := context.Background()
+	
+	result, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(os.Getenv("AWS_BUCKET")),
+		Key: aws.String("transcripts/" + c.Param("id") + ".html"),
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer result.Body.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(result.Body)
+
+	c.Data(
+		http.StatusOK,
+		"text/html",
+		buf.Bytes(),
+	)
 }
 
 func postTranscript(c *gin.Context) {
@@ -107,7 +146,13 @@ func postTranscript(c *gin.Context) {
 		return
 	}
 
-	err = os.WriteFile("./files/"+id+".html", extractedFileBytes, 0644)
+	ctx := context.Background()
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(os.Getenv("AWS_BUCKET")),
+		Key: aws.String("transcripts/" + id + ".html"),
+		ContentType: aws.String("text/html"),
+		Body: bytes.NewReader(extractedFileBytes),
+	})
 
 	if err != nil {
 		log.Println(err.Error())
