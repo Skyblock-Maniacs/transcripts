@@ -46,10 +46,6 @@ func init() {
 }
 
 func main() {
-	initServer()
-}
-
-func initServer() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
